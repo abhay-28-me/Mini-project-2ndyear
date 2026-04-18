@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    .dashboard {
+        max-width: 600px;
+        width: 100%;
+        padding: 20px;
+        animation: fadeUp 0.5s ease both;
+    }
+
+    .auth-result {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 48px;
+        text-align: center;
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .auth-result::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+
+    .result-icon {
+        font-size: 3rem;
+        margin-bottom: 16px;
+        animation: bounceIn 0.6s ease both 0.2s;
+    }
+
+    @keyframes bounceIn {
+        0%   { transform: scale(0); opacity: 0; }
+        70%  { transform: scale(1.1); }
+        100% { transform: scale(1); opacity: 1; }
+    }
+
+    .auth-result h2 {
+        font-size: 1.6rem;
+        font-weight: 800;
+        margin-bottom: 8px;
+        background: linear-gradient(135deg, var(--text), var(--success));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .auth-result p {
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 0.85rem;
+    }
+
+    .confidence-ring {
+        width: 120px;
+        height: 120px;
+        margin: 24px auto;
+        position: relative;
+    }
+
+    .confidence-ring svg {
+        transform: rotate(-90deg);
+    }
+
+    .ring-bg {
+        fill: none;
+        stroke: var(--border);
+        stroke-width: 8;
+    }
+
+    .ring-fill {
+        fill: none;
+        stroke: url(#ringGrad);
+        stroke-width: 8;
+        stroke-linecap: round;
+        stroke-dasharray: 314;
+        stroke-dashoffset: 314;
+        transition: stroke-dashoffset 1.5s ease;
+    }
+
+    .ring-label {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .ring-label .pct {
+        font-family: var(--mono);
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--accent);
+    }
+
+    .ring-label .lbl {
+        font-size: 0.65rem;
+        color: var(--muted);
+        font-family: var(--mono);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .stat-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+    }
+
+    .stat-card .label {
+        font-size: 0.72rem;
+        font-family: var(--mono);
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 6px;
+    }
+
+    .stat-card .value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        font-family: var(--mono);
+        color: var(--text);
+    }
+
+    .history-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 24px;
+    }
+
+    .history-card h3 {
+        font-size: 0.85rem;
+        font-family: var(--mono);
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 16px;
+    }
+
+    .history-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+        font-family: var(--mono);
+        font-size: 0.8rem;
+    }
+
+    .history-row:last-child { border-bottom: none; }
+
+    .badge {
+        padding: 3px 10px;
+        border-radius: 99px;
+        font-size: 0.7rem;
+        font-weight: 700;
+    }
+
+    .badge-ok  { background: rgba(74,222,128,0.15); color: var(--success); }
+    .badge-fail { background: rgba(248,113,113,0.15); color: var(--danger); }
+</style>
+
+<div class="dashboard">
+    <!-- Auth success card -->
+    <div class="auth-result">
+        <div class="result-icon">✅</div>
+        <h2>Identity Verified</h2>
+        <p>Welcome back, <strong id="display-user" style="color:var(--accent)"></strong></p>
+
+        <!-- Confidence ring -->
+        <div class="confidence-ring">
+            <svg viewBox="0 0 120 120" width="120" height="120">
+                <defs>
+                    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#6ee7f7"/>
+                        <stop offset="100%" stop-color="#a78bfa"/>
+                    </linearGradient>
+                </defs>
+                <circle class="ring-bg"   cx="60" cy="60" r="50"/>
+                <circle class="ring-fill" cx="60" cy="60" r="50" id="ring-fill"/>
+            </svg>
+            <div class="ring-label">
+                <div class="pct" id="conf-pct">0%</div>
+                <div class="lbl">Match</div>
+            </div>
+        </div>
+
+        <p style="color:var(--muted);font-size:0.8rem;font-family:var(--mono);">
+            Keystroke pattern confidence score
+        </p>
+    </div>
+
+    <!-- Auth history -->
+    <div class="history-card" id="history-card" style="display:none;">
+        <h3>Recent Auth Attempts</h3>
+        <div id="history-list"></div>
+    </div>
+
+    <!-- Continuous learning progress -->
+    <div class="history-card" id="learning-card" style="display:none;margin-top:16px;">
+        <h3>Model Learning Progress</h3>
+        <div id="learning-content"></div>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:20px;">
+        <button onclick="logout()" class="btn btn-ghost" style="flex:1;text-align:center;">Sign Out</button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function logout() {
+    await fetch("/api/logout", { method: "POST" });
+    window.location.href = "/login";
+}
+window.addEventListener("DOMContentLoaded", async () => {
+    // Get user data from session (not URL params — those are spoofable)
+    const meRes  = await fetch("/api/me");
+    if (!meRes.ok) { window.location.href = "/login"; return; }
+    const me = await meRes.json();
+    if (!me.authenticated) { window.location.href = "/login"; return; }
+
+    const user       = me.username;
+    const confidence = parseFloat(me.confidence || 0);
+
+    document.getElementById("display-user").textContent = user;
+
+    // Animate ring
+    const circumference = 314;
+    const offset = circumference - (confidence / 100) * circumference;
+    setTimeout(() => {
+        document.getElementById("ring-fill").style.strokeDashoffset = offset;
+        document.getElementById("conf-pct").textContent = Math.round(confidence) + "%";
+    }, 300);
+
+    // Load history
+    try {
+        const res  = await fetch("/api/history");
+        const data = await res.json();
+
+        if (data.history && data.history.length > 0) {
+            const card = document.getElementById("history-card");
+            const list = document.getElementById("history-list");
+            card.style.display = "block";
+
+            list.innerHTML = data.history.map(h => `
+                <div class="history-row">
+                    <span style="color:var(--muted)">${new Date(h.timestamp).toLocaleString()}</span>
+                    <span>${h.confidence ? h.confidence.toFixed(1) + "%" : "—"}</span>
+                    <span class="badge ${h.authenticated ? 'badge-ok' : 'badge-fail'}">
+                        ${h.authenticated ? "✓ OK" : "✗ Fail"}
+                    </span>
+                </div>
+            `).join("");
+        }
+    } catch (e) {
+        console.warn("Could not load history:", e);
+    }
+
+    // Load learning progress
+    try {
+        const res    = await fetch("/api/status");
+        const status = await res.json();
+
+        if (status && status.n_samples !== undefined) {
+            const card    = document.getElementById("learning-card");
+            const content = document.getElementById("learning-content");
+            card.style.display = "block";
+
+            content.innerHTML = `
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+                    <div class="stat-card">
+                        <div class="label">Total Samples</div>
+                        <div class="value" style="color:var(--accent);">${status.n_samples}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Accept Threshold</div>
+                        <div class="value" style="color:var(--accent);">${status.threshold.toFixed(1)}</div>
+                        <div style="font-size:0.7rem;color:var(--muted);font-family:var(--mono);margin-top:4px;">${status.method}</div>
+                    </div>
+                </div>
+                ${status.samples_to_next > 0 ? `
+                <div class="stat-card" style="margin-bottom:12px;">
+                    <div class="label">Next Improvement</div>
+                    <div class="value" style="font-size:0.95rem;margin-top:4px;">
+                        Threshold tightens to <span style="color:var(--success);">${status.next_threshold}</span>
+                        in <span style="color:var(--accent);">${status.samples_to_next}</span> more login(s)
+                    </div>
+                </div>
+                <div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                        <span style="font-size:0.75rem;font-family:var(--mono);color:var(--muted);">Progress to next threshold</span>
+                        <span style="font-size:0.75rem;font-family:var(--mono);color:var(--accent);">${status.n_samples} / ${status.next_at}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width:${Math.round((status.n_samples/status.next_at)*100)}%"></div>
+                    </div>
+                </div>` : `
+                <div class="stat-card">
+                    <div class="label">Model Status</div>
+                    <div class="value" style="color:var(--success);font-size:0.95rem;">✓ Fully Trained</div>
+                </div>`}
+            `;
+        }
+    } catch (e) {
+        console.warn("Could not load status:", e);
+    }
+});
+</script>
+{% endblock %}

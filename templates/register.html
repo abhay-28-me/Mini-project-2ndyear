@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% block title %}Register{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="card-icon">✦</div>
+        <h1>Create Account</h1>
+        <p class="subtitle">// enroll your keystroke profile</p>
+    </div>
+
+    <div id="alert-box"></div>
+
+    <!-- Step 1: Username -->
+    <div id="step-1">
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="username" placeholder="choose a username"
+                autocomplete="off" oninput="onUsernameInput()">
+            <div id="username-feedback" style="font-size:0.78rem;font-family:var(--mono);margin-top:6px;min-height:18px;"></div>
+        </div>
+        <button class="btn btn-primary" id="continue-btn" onclick="goToStep2()">Continue →</button>
+        <p class="foot-text">Already have an account? <a href="/login">Sign in</a></p>
+    </div>
+
+    <!-- Step 2: Password enrollment -->
+    <div id="step-2" style="display:none;">
+        <div class="alert alert-info" style="margin-bottom:16px;">
+            ⌨️ Choose a password and type it <strong>10 times</strong>.<br>
+            <span style="font-size:0.8rem;opacity:0.8;">Your typing rhythm will be your biometric. No backspace!</span>
+        </div>
+
+        <div class="form-group">
+            <label>Your Password</label>
+            <input type="text" id="chosen-password" placeholder="choose a password (min 6 chars)"
+                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                style="font-family:var(--mono);">
+            <div style="font-size:0.75rem;color:var(--muted);font-family:var(--mono);margin-top:6px;">
+                Use something you can type consistently — avoid symbols.
+            </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="goToStep3()" style="margin-bottom:0;">
+            Start Enrollment →
+        </button>
+    </div>
+
+    <!-- Step 3: Keystroke Enrollment -->
+    <div id="step-3" style="display:none;">
+
+        <!-- Password display (masked) -->
+        <div style="background:rgba(110,231,247,0.05);border:1px solid rgba(110,231,247,0.15);border-radius:10px;padding:14px 18px;margin-bottom:16px;text-align:center;">
+            <div style="font-size:0.72rem;font-family:var(--mono);color:var(--muted);margin-bottom:4px;">TYPE THIS PASSWORD</div>
+            <div id="phrase-display" style="font-family:var(--mono);font-size:1.2rem;letter-spacing:0.1em;"></div>
+        </div>
+
+        <div class="form-group">
+            <label>
+                Attempt <span id="attempt-num">1</span> of 10
+                <span id="error-badge" style="display:none;color:var(--danger);font-size:0.75rem;margin-left:8px;">✗ mistake — restarting</span>
+            </label>
+            <input type="password" id="enroll-input"
+                placeholder="type your password..."
+                autocomplete="off" autocorrect="off"
+                autocapitalize="off" spellcheck="false"
+                style="font-family:var(--mono);font-size:1.1rem;letter-spacing:0.15em;">
+        </div>
+
+        <!-- Progress -->
+        <div style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                <span style="font-size:0.75rem;font-family:var(--mono);color:var(--muted);">Enrollment Progress</span>
+                <span style="font-size:0.75rem;font-family:var(--mono);color:var(--accent);" id="progress-label">0 / 10</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:8px;justify-content:center;" id="sample-dots"></div>
+        </div>
+
+        <!-- Live stats -->
+        <div class="ks-stats" id="ks-stats" style="opacity:0.3;">
+            <div class="ks-stat">
+                <div class="val" id="stat-keys">0</div>
+                <div class="lbl">Keystrokes</div>
+            </div>
+            <div class="ks-stat">
+                <div class="val" id="stat-dwell">0ms</div>
+                <div class="lbl">Avg Dwell</div>
+            </div>
+            <div class="ks-stat">
+                <div class="val" id="stat-flight">0ms</div>
+                <div class="lbl">Avg Flight</div>
+            </div>
+        </div>
+
+        <div style="margin-top:20px;">
+            <button class="btn btn-primary" id="enroll-btn" onclick="submitEnrollment()" disabled>
+                <span class="spinner" id="enroll-spinner"></span>
+                <span id="enroll-btn-text">Complete Enrollment</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const REQUIRED = 10;
+let samples  = [];
+let capture  = null;
+let creds    = {};
+let PHRASE   = "";
+
+function buildDots() {
+    const container = document.getElementById("sample-dots");
+    container.innerHTML = "";
+    for (let i = 0; i < REQUIRED; i++) {
+        const dot = document.createElement("div");
+        dot.id = `dot-${i}`;
+        dot.style.cssText = "width:10px;height:10px;border-radius:50%;background:var(--border);transition:all 0.3s;";
+        container.appendChild(dot);
+    }
+}
+
+function updatePhraseDisplay() {
+    // Show masked version of password
+    document.getElementById("phrase-display").innerHTML =
+        `<span style="color:var(--accent);">${"●".repeat(PHRASE.length)}</span>`;
+}
+
+function showAlert(msg, type = "info") {
+    document.getElementById("alert-box").innerHTML =
+        `<div class="alert alert-${type}">${msg}</div>`;
+    setTimeout(() => {
+        const el = document.getElementById("alert-box");
+        if (el) el.innerHTML = "";
+    }, 2500);
+}
+
+let usernameAvailable = false;
+let usernameCheckTimer = null;
+
+function onUsernameInput() {
+    const username = document.getElementById("username").value.trim();
+    const feedback = document.getElementById("username-feedback");
+    const btn      = document.getElementById("continue-btn");
+
+    usernameAvailable = false;
+    btn.disabled      = true;
+    clearTimeout(usernameCheckTimer);
+
+    if (username.length < 3) {
+        feedback.innerHTML = "";
+        return;
+    }
+
+    feedback.innerHTML = `<span style="color:var(--muted);">checking...</span>`;
+
+    // Debounce — wait 500ms after user stops typing before checking
+    usernameCheckTimer = setTimeout(async () => {
+        try {
+            const res  = await fetch("/api/check-username", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify({ username })
+            });
+            const data = await res.json();
+
+            if (data.available) {
+                feedback.innerHTML    = `<span style="color:var(--success);">✓ ${data.message}</span>`;
+                usernameAvailable     = true;
+                btn.disabled          = false;
+            } else {
+                feedback.innerHTML    = `<span style="color:var(--danger);">✗ ${data.message}</span>`;
+                usernameAvailable     = false;
+                btn.disabled          = true;
+            }
+        } catch (e) {
+            feedback.innerHTML = `<span style="color:var(--muted);">Could not check username.</span>`;
+            btn.disabled       = false;   // allow proceeding on network error
+        }
+    }, 500);
+}
+
+async function goToStep2() {
+    const username = document.getElementById("username").value.trim();
+
+    if (!username || username.length < 3)
+        return showAlert("Username must be at least 3 characters.", "danger");
+
+    if (!usernameAvailable) {
+        return showAlert("Please choose an available username first.", "danger");
+    }
+
+    creds.username = username;
+    document.getElementById("step-1").style.display = "none";
+    document.getElementById("step-2").style.display = "block";
+}
+
+function goToStep3() {
+    const pwd = document.getElementById("chosen-password").value;
+    if (!pwd || pwd.length < 6)
+        return showAlert("Password must be at least 6 characters.", "danger");
+
+    PHRASE         = pwd;
+    creds.password = pwd;
+
+    document.getElementById("step-2").style.display = "none";
+    document.getElementById("step-3").style.display = "block";
+
+    buildDots();
+    updatePhraseDisplay();
+
+    const input = document.getElementById("enroll-input");
+    capture = new KeystrokeCapture(input, PHRASE);
+    capture.start();
+    input.focus();
+    input.addEventListener("input",   onTyping);
+    input.addEventListener("keydown", onKeyDown);
+}
+
+function onKeyDown(e) {
+    if (e.key === "Backspace") {
+        const badge = document.getElementById("error-badge");
+        badge.style.display = "inline";
+        setTimeout(() => badge.style.display = "none", 1500);
+    }
+}
+
+function onTyping() {
+    const input = document.getElementById("enroll-input");
+    const val   = input.value;
+
+    // Update live stats
+    const stats = capture.getStats();
+    if (stats.keystrokes > 0) {
+        document.getElementById("ks-stats").style.opacity = "1";
+        document.getElementById("stat-keys").textContent   = stats.keystrokes;
+        document.getElementById("stat-dwell").textContent  = stats.avgDwell + "ms";
+        document.getElementById("stat-flight").textContent = stats.avgFlight + "ms";
+    }
+
+    // Phrase complete
+    if (val === PHRASE) {
+        const data = capture.getData();
+        if (data) {
+            samples.push(data);
+            updateProgress();
+            input.value = "";
+            capture.reset();
+            capture.start();
+            showAlert(`✓ Sample ${samples.length} recorded!`, "success");
+            if (samples.length >= REQUIRED) {
+                document.getElementById("enroll-btn").disabled = false;
+                showAlert("🎉 All 10 samples done! Click Complete Enrollment.", "success");
+            }
+        } else {
+            showAlert("✗ Mistakes detected — retype without backspace!", "danger");
+            input.value = "";
+            capture.reset();
+            capture.start();
+        }
+    }
+}
+
+function updateProgress() {
+    const pct = (samples.length / REQUIRED) * 100;
+    document.getElementById("progress-fill").style.width  = pct + "%";
+    document.getElementById("progress-label").textContent = `${samples.length} / ${REQUIRED}`;
+    document.getElementById("attempt-num").textContent    = Math.min(samples.length + 1, REQUIRED);
+    for (let i = 0; i < REQUIRED; i++) {
+        const dot = document.getElementById(`dot-${i}`);
+        if (dot) {
+            dot.style.background = i < samples.length ? "var(--success)" : "var(--border)";
+            if (i < samples.length) dot.style.transform = "scale(1.2)";
+        }
+    }
+}
+
+async function submitEnrollment() {
+    const btn     = document.getElementById("enroll-btn");
+    const spinner = document.getElementById("enroll-spinner");
+    const btnText = document.getElementById("enroll-btn-text");
+    btn.disabled          = true;
+    spinner.style.display = "inline-block";
+    btnText.textContent   = "Enrolling...";
+
+    try {
+        const res = await fetch("/api/register", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ username: creds.username, password: creds.password, samples })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showAlert("✅ Enrolled! Redirecting...", "success");
+            setTimeout(() => window.location.href = "/login", 1500);
+        } else {
+            showAlert("❌ " + data.message, "danger");
+            btn.disabled          = false;
+            spinner.style.display = "none";
+            btnText.textContent   = "Complete Enrollment";
+        }
+    } catch (e) {
+        showAlert("Network error.", "danger");
+        btn.disabled          = false;
+        spinner.style.display = "none";
+        btnText.textContent   = "Complete Enrollment";
+    }
+}
+</script>
+{% endblock %}

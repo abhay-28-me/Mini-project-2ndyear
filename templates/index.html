@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<style>
+    .hero {
+        text-align: center;
+        padding: 60px 20px;
+        max-width: 700px;
+        margin: 0 auto;
+        animation: fadeUp 0.6s ease both;
+    }
+
+    .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(110,231,247,0.08);
+        border: 1px solid rgba(110,231,247,0.2);
+        border-radius: 99px;
+        padding: 6px 16px;
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        color: var(--accent);
+        margin-bottom: 28px;
+        animation: fadeUp 0.4s ease both;
+    }
+
+    .hero h1 {
+        font-size: clamp(2.2rem, 6vw, 3.8rem);
+        font-weight: 800;
+        line-height: 1.1;
+        margin-bottom: 20px;
+        background: linear-gradient(135deg, #fff 0%, var(--accent) 60%, var(--accent2) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .hero p {
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.7;
+        margin-bottom: 40px;
+        font-family: var(--mono);
+    }
+
+    .hero-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .hero-actions .btn {
+        min-width: 160px;
+    }
+
+    /* Feature grid */
+    .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        max-width: 700px;
+        margin: 60px auto 0;
+        padding: 0 20px;
+        animation: fadeUp 0.8s ease both;
+    }
+
+    .feature-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 24px;
+        transition: all 0.2s;
+    }
+
+    .feature-card:hover {
+        border-color: rgba(110,231,247,0.3);
+        transform: translateY(-2px);
+        box-shadow: var(--glow);
+    }
+
+    .feature-icon {
+        font-size: 1.5rem;
+        margin-bottom: 12px;
+    }
+
+    .feature-card h3 {
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+        color: var(--text);
+    }
+
+    .feature-card p {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-family: var(--mono);
+        line-height: 1.5;
+    }
+</style>
+
+<div>
+    <div class="hero">
+        <div class="hero-badge">
+            <span class="dot" style="width:6px;height:6px;background:var(--accent);border-radius:50%;animation:pulse 2s infinite;display:inline-block;"></span>
+            IKDD-Powered Biometric Authentication
+        </div>
+        <h1>Who You Are<br>Is How You Type</h1>
+        <p>
+            Keystroke dynamics authentication using the Indian Keystroke<br>
+            Dynamics Dataset — your typing rhythm is your password.
+        </p>
+        <div class="hero-actions">
+            <a href="/register" class="btn btn-primary">Get Started →</a>
+            <a href="/login"    class="btn btn-ghost">Sign In</a>
+        </div>
+    </div>
+
+    <div class="features">
+        <div class="feature-card">
+            <div class="feature-icon">🧠</div>
+            <h3>IKDD Training</h3>
+            <p>Base model trained on 276k+ real keystroke samples from IKDD dataset.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">👤</div>
+            <h3>Personal Profile</h3>
+            <p>One-Class SVM builds a unique typing profile just for you.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🔒</div>
+            <h3>Biometric Auth</h3>
+            <p>Authenticates using dwell time and flight time between keystrokes.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3>Real-time</h3>
+            <p>Instant authentication — just type your phrase and you're in.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

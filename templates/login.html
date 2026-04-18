@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="card-icon">◈</div>
+        <h1>Welcome Back</h1>
+        <p class="subtitle">// your typing rhythm is your identity</p>
+    </div>
+
+    <div id="alert-box"></div>
+
+    <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="username" placeholder="your username" autocomplete="off">
+    </div>
+
+    <div class="form-group">
+        <label>
+            Password
+            <span style="font-size:0.72rem;color:var(--muted);font-family:var(--mono);margin-left:6px;">— type naturally, no backspace</span>
+        </label>
+        <input type="password" id="password"
+            placeholder="your password"
+            autocomplete="off" autocorrect="off"
+            autocapitalize="off" spellcheck="false"
+            style="font-family:var(--mono);font-size:1.1rem;letter-spacing:0.15em;">
+        <div id="error-msg" style="display:none;color:var(--danger);font-size:0.75rem;font-family:var(--mono);margin-top:6px;">
+            ✗ Mistake detected — field cleared, please retype
+        </div>
+    </div>
+
+    <!-- Live keystroke stats -->
+    <div class="ks-stats" id="ks-stats" style="opacity:0.3;margin-bottom:20px;">
+        <div class="ks-stat">
+            <div class="val" id="stat-keys">0</div>
+            <div class="lbl">Keystrokes</div>
+        </div>
+        <div class="ks-stat">
+            <div class="val" id="stat-dwell">0ms</div>
+            <div class="lbl">Avg Dwell</div>
+        </div>
+        <div class="ks-stat">
+            <div class="val" id="stat-flight">0ms</div>
+            <div class="lbl">Avg Flight</div>
+        </div>
+    </div>
+
+    <button class="btn btn-primary" id="login-btn" onclick="doLogin()">
+        <span class="spinner" id="login-spinner"></span>
+        <span id="login-btn-text">Authenticate →</span>
+    </button>
+
+    <p class="foot-text">No account? <a href="/register">Register here</a></p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let capture = null;
+
+window.addEventListener("DOMContentLoaded", () => {
+    const input = document.getElementById("password");
+    capture = new KeystrokeCapture(input);
+    capture.start();
+    input.addEventListener("input",   onTyping);
+    input.addEventListener("keydown", onKeyDown);
+});
+
+function showAlert(msg, type = "info") {
+    document.getElementById("alert-box").innerHTML =
+        `<div class="alert alert-${type}">${msg}</div>`;
+}
+
+function onKeyDown(e) {
+    if (e.key === "Backspace") {
+        // Show error, clear field, restart capture
+        document.getElementById("error-msg").style.display = "block";
+        setTimeout(() => {
+            const input = document.getElementById("password");
+            input.value = "";
+            capture.reset();
+            capture.start();
+            document.getElementById("error-msg").style.display = "none";
+            document.getElementById("ks-stats").style.opacity = "0.3";
+            document.getElementById("stat-keys").textContent   = "0";
+            document.getElementById("stat-dwell").textContent  = "0ms";
+            document.getElementById("stat-flight").textContent = "0ms";
+        }, 50);
+    }
+}
+
+function onTyping() {
+    const stats = capture.getStats();
+    if (stats.keystrokes > 0) {
+        document.getElementById("ks-stats").style.opacity  = "1";
+        document.getElementById("stat-keys").textContent   = stats.keystrokes;
+        document.getElementById("stat-dwell").textContent  = stats.avgDwell + "ms";
+        document.getElementById("stat-flight").textContent = stats.avgFlight + "ms";
+    }
+}
+
+async function doLogin() {
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
+
+    if (!username) return showAlert("Please enter your username.", "danger");
+    if (!password) return showAlert("Please enter your password.", "danger");
+
+    const timingData = capture.getData();
+    if (!timingData) {
+        return showAlert("Typing data incomplete — please retype your password without backspace.", "danger");
+    }
+
+    const btn     = document.getElementById("login-btn");
+    const spinner = document.getElementById("login-spinner");
+    const btnText = document.getElementById("login-btn-text");
+    btn.disabled          = true;
+    spinner.style.display = "inline-block";
+    btnText.textContent   = "Authenticating...";
+
+    try {
+        const res = await fetch("/api/login", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ username, password, timing: timingData })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            window.location.href = "/dashboard";
+        } else {
+            showAlert("❌ " + data.message, "danger");
+            document.getElementById("password").value = "";
+            capture.reset();
+            capture.start();
+            document.getElementById("ks-stats").style.opacity = "0.3";
+            btn.disabled          = false;
+            spinner.style.display = "none";
+            btnText.textContent   = "Authenticate →";
+        }
+    } catch (e) {
+        showAlert("Network error. Please try again.", "danger");
+        btn.disabled          = false;
+        spinner.style.display = "none";
+        btnText.textContent   = "Authenticate →";
+    }
+}
+</script>
+{% endblock %}
