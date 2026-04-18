@@ -17,7 +17,8 @@ model/scaler.pkl
 
 # User data (private — never upload)
 users/users.db
-users/profiles/
+users/profiles/*
+!users/profiles/.gitkeep
 
 # Data folder (IKDD files — too large)
 data/
