@@ -2,10 +2,10 @@ services:
   - type: web
     name: keystroke-auth
     runtime: python
-    buildCommand: pip install -r requirements.txt && python model/train_base.py
-    startCommand: gunicorn app:app -c gunicorn.conf.py
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -c gunicorn_conf.py app:app
     envVars:
       - key: SECRET_KEY
         generateValue: true
-      - key: PORT
-        value: 5000
+      - key: PYTHON_VERSION
+        value: 3.11.0
