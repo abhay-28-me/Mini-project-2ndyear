@@ -19,6 +19,11 @@ import sys
 # Ensure model/ is importable
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Ensure required directories exist on startup (important for Render)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+os.makedirs(os.path.join(BASE_DIR, "users", "profiles"), exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, "users"), exist_ok=True)
+
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -91,7 +96,6 @@ def api_check_username():
         return jsonify({"available": False, "message": f'Username "{username}" is already taken. Please choose another.'})
 
     return jsonify({"available": True, "message": f'"{username}" is available!'})
-@app.route("/api/register", methods=["POST"])
 @limiter.limit("5 per hour")   # max 5 registration attempts per IP per hour
 def api_register():
     """
@@ -122,15 +126,7 @@ def api_register():
         return jsonify({"success": False, "message": msg})
 
     # Enroll keystroke profile
-    try:
-        result = enroll_user(username, samples)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()   # prints full error in terminal
-        from database import delete_user
-        delete_user(username)
-        return jsonify({"success": False, "message": f"Enrollment error: {str(e)}"}), 500
-
+    result = enroll_user(username, samples)
     if not result["success"]:
         # Roll back — remove the DB entry so the username doesn't get stuck
         from database import delete_user

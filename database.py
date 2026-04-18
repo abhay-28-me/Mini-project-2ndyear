@@ -10,7 +10,7 @@ import os
 import hashlib
 import secrets
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "users", "users.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users", "users.db")
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 
@@ -43,16 +43,9 @@ def init_db():
             username       TEXT    NOT NULL,
             authenticated  INTEGER NOT NULL,
             confidence     REAL,
-            failure_type   TEXT    DEFAULT NULL,
             timestamp      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # Add failure_type column if upgrading from older schema
-    try:
-        cursor.execute("ALTER TABLE auth_logs ADD COLUMN failure_type TEXT DEFAULT NULL")
-        conn.commit()
-    except Exception:
-        pass   # column already exists
 
     conn.commit()
     conn.close()
@@ -116,11 +109,11 @@ def mark_enrolled(username, n_samples):
     conn.close()
 
 
-def log_auth_attempt(username, authenticated, confidence, failure_type=None):
+def log_auth_attempt(username, authenticated, confidence):
     conn = get_connection()
     conn.execute(
-        "INSERT INTO auth_logs (username, authenticated, confidence, failure_type) VALUES (?, ?, ?, ?)",
-        (username, int(authenticated), confidence, failure_type)
+        "INSERT INTO auth_logs (username, authenticated, confidence) VALUES (?, ?, ?)",
+        (username, int(authenticated), confidence)
     )
     conn.commit()
     conn.close()
@@ -147,30 +140,31 @@ def get_auth_history(username, limit=10):
 
 def is_locked_out(username):
     """
-    Only locks out on PASSWORD failures — not keystroke failures.
-    A legitimate user whose typing pattern varies won't get locked out.
-    An imposter guessing passwords will.
+    Returns True if the user has 5+ failed attempts in the last 5 minutes.
+    Uses the existing auth_logs table — no schema changes needed.
     """
     conn = get_connection()
-    recent_password_fails = conn.execute("""
+    recent_fails = conn.execute("""
         SELECT COUNT(*) FROM auth_logs
         WHERE username = ?
           AND authenticated = 0
-          AND failure_type = 'password'
           AND timestamp > datetime('now', '-5 minutes')
     """, (username,)).fetchone()[0]
     conn.close()
-    return recent_password_fails >= 5
+    return recent_fails >= 5
 
 
 def get_lockout_remaining(username):
+    """
+    Returns how many seconds remain until lockout expires.
+    Returns 0 if not locked out.
+    """
     import datetime
     conn = get_connection()
     row  = conn.execute("""
         SELECT timestamp FROM auth_logs
         WHERE username = ?
           AND authenticated = 0
-          AND failure_type = 'password'
         ORDER BY timestamp DESC
         LIMIT 1
     """, (username,)).fetchone()

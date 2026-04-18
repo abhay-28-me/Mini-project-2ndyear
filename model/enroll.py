@@ -34,8 +34,8 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from model.parse_ikdd import extract_features_from_raw
 
-PROFILES_DIR = os.path.join(os.path.dirname(__file__), "..", "users", "profiles")
-MODEL_DIR    = os.path.dirname(__file__)
+PROFILES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "users", "profiles")
+MODEL_DIR    = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH   = os.path.join(MODEL_DIR, "base_model.pkl")
 SCALER_PATH  = os.path.join(MODEL_DIR, "scaler.pkl")
 os.makedirs(PROFILES_DIR, exist_ok=True)
