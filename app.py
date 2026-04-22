@@ -19,14 +19,17 @@ import sys
 # Ensure model/ is importable
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Ensure required directories exist on startup (important for Render)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-os.makedirs(os.path.join(BASE_DIR, "users", "profiles"), exist_ok=True)
-os.makedirs(os.path.join(BASE_DIR, "users"), exist_ok=True)
-
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+
+# Flask-Limiter is optional — works locally and on Render but may not be
+# available on all platforms. Gracefully fall back to no rate limiting.
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    LIMITER_AVAILABLE = True
+except ImportError:
+    LIMITER_AVAILABLE = False
+    print("[WARN] flask_limiter not available — rate limiting disabled.")
 from database import (
     create_user, verify_password, get_user,
     mark_enrolled, log_auth_attempt, get_auth_history,
@@ -38,12 +41,20 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "keystroke-auth-dev-secret-2024")
 
 # ── Rate limiter ───────────────────────────────────────────────────────────────
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,   # limit per IP address
-    default_limits=[],             # no global limit — set per-route only
-    storage_uri="memory://",
-)
+if LIMITER_AVAILABLE:
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=[],
+        storage_uri="memory://",
+    )
+else:
+    # Dummy limiter that does nothing
+    class _NoopLimiter:
+        def limit(self, *args, **kwargs):
+            def decorator(f): return f
+            return decorator
+    limiter = _NoopLimiter()
 
 
 # ── Page routes ────────────────────────────────────────────────────────────────
