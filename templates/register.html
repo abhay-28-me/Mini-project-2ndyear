@@ -15,11 +15,9 @@
     <div id="step-1">
         <div class="form-group">
             <label>Username</label>
-            <input type="text" id="username" placeholder="choose a username"
-                autocomplete="off" oninput="onUsernameInput()">
-            <div id="username-feedback" style="font-size:0.78rem;font-family:var(--mono);margin-top:6px;min-height:18px;"></div>
+            <input type="text" id="username" placeholder="choose a username" autocomplete="off">
         </div>
-        <button class="btn btn-primary" id="continue-btn" onclick="goToStep2()">Continue →</button>
+        <button class="btn btn-primary" onclick="goToStep2()">Continue →</button>
         <p class="foot-text">Already have an account? <a href="/login">Sign in</a></p>
     </div>
 
@@ -54,7 +52,7 @@
             <div id="phrase-display" style="font-family:var(--mono);font-size:1.2rem;letter-spacing:0.1em;"></div>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" id="typing-area">
             <label>
                 Attempt <span id="attempt-num">1</span> of 10
                 <span id="error-badge" style="display:none;color:var(--danger);font-size:0.75rem;margin-left:8px;">✗ mistake — restarting</span>
@@ -64,6 +62,25 @@
                 autocomplete="off" autocorrect="off"
                 autocapitalize="off" spellcheck="false"
                 style="font-family:var(--mono);font-size:1.1rem;letter-spacing:0.15em;">
+        </div>
+
+        <!-- Next Sample button -->
+        <div id="next-sample-div" style="display:none;margin-bottom:12px;">
+            <button class="btn btn-primary" onclick="startNextSample()"
+                style="background:linear-gradient(135deg,var(--success),var(--accent));color:#0a0a14;">
+                ✓ Sample saved — Click for Next →
+            </button>
+        </div>
+
+        <!-- All samples done message — shown after 10th sample -->
+        <div id="all-done-msg" style="display:none;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.3);border-radius:12px;padding:20px;text-align:center;margin-bottom:16px;">
+            <div style="font-size:2rem;margin-bottom:8px;">🎉</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--success);font-family:var(--mono);margin-bottom:6px;">
+                All 10 samples recorded!
+            </div>
+            <div style="font-size:0.82rem;color:var(--muted);font-family:var(--mono);">
+                Your typing profile is ready. Click below to complete enrollment.
+            </div>
         </div>
 
         <!-- Progress -->
@@ -111,6 +128,23 @@ let samples  = [];
 let capture  = null;
 let creds    = {};
 let PHRASE   = "";
+let waitingForNext = false;
+
+function startNextSample() {
+    const input = document.getElementById("enroll-input");
+    waitingForNext = false;
+    document.getElementById("next-sample-div").style.display = "none";
+    input.disabled    = false;
+    input.placeholder = "type your password...";
+    input.value       = "";
+    document.getElementById("ks-stats").style.opacity  = "0.3";
+    document.getElementById("stat-keys").textContent   = "0";
+    document.getElementById("stat-dwell").textContent  = "0ms";
+    document.getElementById("stat-flight").textContent = "0ms";
+    capture.reset();
+    capture.start();
+    input.focus();
+}
 
 function buildDots() {
     const container = document.getElementById("sample-dots");
@@ -138,61 +172,10 @@ function showAlert(msg, type = "info") {
     }, 2500);
 }
 
-let usernameAvailable = false;
-let usernameCheckTimer = null;
-
-function onUsernameInput() {
+function goToStep2() {
     const username = document.getElementById("username").value.trim();
-    const feedback = document.getElementById("username-feedback");
-    const btn      = document.getElementById("continue-btn");
-
-    usernameAvailable = false;
-    btn.disabled      = true;
-    clearTimeout(usernameCheckTimer);
-
-    if (username.length < 3) {
-        feedback.innerHTML = "";
-        return;
-    }
-
-    feedback.innerHTML = `<span style="color:var(--muted);">checking...</span>`;
-
-    // Debounce — wait 500ms after user stops typing before checking
-    usernameCheckTimer = setTimeout(async () => {
-        try {
-            const res  = await fetch("/api/check-username", {
-                method:  "POST",
-                headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({ username })
-            });
-            const data = await res.json();
-
-            if (data.available) {
-                feedback.innerHTML    = `<span style="color:var(--success);">✓ ${data.message}</span>`;
-                usernameAvailable     = true;
-                btn.disabled          = false;
-            } else {
-                feedback.innerHTML    = `<span style="color:var(--danger);">✗ ${data.message}</span>`;
-                usernameAvailable     = false;
-                btn.disabled          = true;
-            }
-        } catch (e) {
-            feedback.innerHTML = `<span style="color:var(--muted);">Could not check username.</span>`;
-            btn.disabled       = false;   // allow proceeding on network error
-        }
-    }, 500);
-}
-
-async function goToStep2() {
-    const username = document.getElementById("username").value.trim();
-
     if (!username || username.length < 3)
         return showAlert("Username must be at least 3 characters.", "danger");
-
-    if (!usernameAvailable) {
-        return showAlert("Please choose an available username first.", "danger");
-    }
-
     creds.username = username;
     document.getElementById("step-1").style.display = "none";
     document.getElementById("step-2").style.display = "block";
@@ -247,19 +230,32 @@ function onTyping() {
         if (data) {
             samples.push(data);
             updateProgress();
-            input.value = "";
+            input.disabled = true;
+            input.value    = "";
             capture.reset();
-            capture.start();
-            showAlert(`✓ Sample ${samples.length} recorded!`, "success");
+
             if (samples.length >= REQUIRED) {
-                document.getElementById("enroll-btn").disabled = false;
-                showAlert("🎉 All 10 samples done! Click Complete Enrollment.", "success");
+                // All done — hide typing area, show completion message
+                document.getElementById("typing-area").style.display     = "none";
+                document.getElementById("next-sample-div").style.display = "none";
+                document.getElementById("ks-stats").style.display        = "none";
+                document.getElementById("all-done-msg").style.display    = "block";
+                document.getElementById("enroll-btn").disabled           = false;
+            } else {
+                // Show Next Sample button
+                waitingForNext = true;
+                document.getElementById("next-sample-div").style.display = "block";
+                showAlert(`✓ Sample ${samples.length} recorded! Click Next when ready.`, "success");
             }
         } else {
             showAlert("✗ Mistakes detected — retype without backspace!", "danger");
             input.value = "";
             capture.reset();
             capture.start();
+            document.getElementById("ks-stats").style.opacity  = "0.3";
+            document.getElementById("stat-keys").textContent   = "0";
+            document.getElementById("stat-dwell").textContent  = "0ms";
+            document.getElementById("stat-flight").textContent = "0ms";
         }
     }
 }

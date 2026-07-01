@@ -107,6 +107,9 @@ def api_check_username():
         return jsonify({"available": False, "message": f'Username "{username}" is already taken. Please choose another.'})
 
     return jsonify({"available": True, "message": f'"{username}" is available!'})
+
+
+@app.route("/api/register", methods=["POST"])
 @limiter.limit("5 per hour")   # max 5 registration attempts per IP per hour
 def api_register():
     """
