@@ -42,7 +42,7 @@ os.makedirs(PROFILES_DIR, exist_ok=True)
 
 # ── Thresholds ─────────────────────────────────────────────────────────────────
 BASE_THRESHOLD = 0.25
-MIN_CONFIDENCE = 60.0
+MIN_CONFIDENCE = 50.0
 
 ADAPTIVE_THRESHOLDS = [
     (50, 1.5),
@@ -86,7 +86,7 @@ def enroll_user(username, timing_samples):
     n_samples = len(X)
     mean      = np.mean(X, axis=0)
     std       = np.std(X,  axis=0)
-    std       = np.where(std < 1e-6, 1e-6, std)
+    std       = np.where(std < 1.0, 1.0, std)
     thresh    = _adaptive_threshold(n_samples)
 
     profile = {
@@ -150,12 +150,17 @@ def authenticate_user(username, timing_sample):
 
     z_scores = np.abs((feat - mean) / std)
     avg_z    = float(np.mean(z_scores))
+   
+    print(f"[DEBUG] avg_z={avg_z:.4f}, threshold={thresh}")
+    print(f"[DEBUG] top 5 z_scores: {sorted(z_scores, reverse=True)[:5]}")
 
     authenticated = avg_z <= thresh
 
-    # Confidence: avg_z=0 → 100%, avg_z=thresh → ~65%, avg_z=thresh*1.5 → ~33%
-    profile_score = float(np.clip(1.0 - (avg_z / (thresh * 1.5)), 0, 1))
+    # Confidence: avg_z=0 → 100%, avg_z=thresh → ~75%, clips to 0 only beyond thresh*4
+    profile_score = float(np.clip(1.0 - (avg_z / (thresh * 4)), 0, 1))
     confidence    = round(profile_score * 100, 1)
+
+    
 
     # Minimum confidence gate
     if authenticated and confidence < MIN_CONFIDENCE:
@@ -202,7 +207,7 @@ def update_profile(username, new_timing_sample):
 
     mean   = np.mean(X_enroll, axis=0)
     std    = np.std(X_enroll,  axis=0)
-    std    = np.where(std < 1e-6, 1e-6, std)
+    std    = np.where(std < 1.0, 1.0, std)
     thresh = _adaptive_threshold(n_samples)
 
     profile.update({

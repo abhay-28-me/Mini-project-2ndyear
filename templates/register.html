@@ -15,9 +15,11 @@
     <div id="step-1">
         <div class="form-group">
             <label>Username</label>
-            <input type="text" id="username" placeholder="choose a username" autocomplete="off">
+            <input type="text" id="username" placeholder="choose a username"
+                autocomplete="off" oninput="onUsernameInput()">
+            <div id="username-feedback" style="font-size:0.78rem;font-family:var(--mono);margin-top:6px;min-height:18px;"></div>
         </div>
-        <button class="btn btn-primary" onclick="goToStep2()">Continue →</button>
+        <button class="btn btn-primary" id="continue-btn" onclick="goToStep2()" disabled>Continue →</button>
         <p class="foot-text">Already have an account? <a href="/login">Sign in</a></p>
     </div>
 
@@ -172,10 +174,55 @@ function showAlert(msg, type = "info") {
     }, 2500);
 }
 
+let usernameAvailable = false;
+let usernameCheckTimer = null;
+
+function onUsernameInput() {
+    const username = document.getElementById("username").value.trim();
+    const feedback = document.getElementById("username-feedback");
+    const btn      = document.getElementById("continue-btn");
+
+    usernameAvailable = false;
+    btn.disabled      = true;
+    clearTimeout(usernameCheckTimer);
+
+    if (username.length < 3) {
+        feedback.innerHTML = "";
+        return;
+    }
+
+    feedback.innerHTML = `<span style="color:var(--muted);">checking...</span>`;
+
+    usernameCheckTimer = setTimeout(async () => {
+        try {
+            const res  = await fetch("/api/check-username", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify({ username })
+            });
+            const data = await res.json();
+            if (data.available) {
+                feedback.innerHTML = `<span style="color:var(--success);">✓ ${data.message}</span>`;
+                usernameAvailable  = true;
+                btn.disabled       = false;
+            } else {
+                feedback.innerHTML = `<span style="color:var(--danger);">✗ ${data.message}</span>`;
+                usernameAvailable  = false;
+                btn.disabled       = true;
+            }
+        } catch (e) {
+            feedback.innerHTML = `<span style="color:var(--muted);">Could not check username.</span>`;
+            btn.disabled       = false;
+        }
+    }, 500);
+}
+
 function goToStep2() {
     const username = document.getElementById("username").value.trim();
     if (!username || username.length < 3)
         return showAlert("Username must be at least 3 characters.", "danger");
+    if (!usernameAvailable)
+        return showAlert("Please choose an available username first.", "danger");
     creds.username = username;
     document.getElementById("step-1").style.display = "none";
     document.getElementById("step-2").style.display = "block";
@@ -205,9 +252,19 @@ function goToStep3() {
 
 function onKeyDown(e) {
     if (e.key === "Backspace") {
+        if (waitingForNext) return;
+        e.preventDefault();
+        const input = document.getElementById("enroll-input");
         const badge = document.getElementById("error-badge");
         badge.style.display = "inline";
         setTimeout(() => badge.style.display = "none", 1500);
+        input.value = "";
+        capture.reset();
+        capture.start();
+        document.getElementById("ks-stats").style.opacity  = "0.3";
+        document.getElementById("stat-keys").textContent   = "0";
+        document.getElementById("stat-dwell").textContent  = "0ms";
+        document.getElementById("stat-flight").textContent = "0ms";
     }
 }
 
