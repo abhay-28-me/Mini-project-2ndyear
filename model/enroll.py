@@ -150,21 +150,12 @@ def authenticate_user(username, timing_sample):
 
     z_scores = np.abs((feat - mean) / std)
     avg_z    = float(np.mean(z_scores))
-   
-    print(f"[DEBUG] avg_z={avg_z:.4f}, threshold={thresh}")
-    print(f"[DEBUG] top 5 z_scores: {sorted(z_scores, reverse=True)[:5]}")
 
     authenticated = avg_z <= thresh
 
-    # Confidence: avg_z=0 → 100%, avg_z=thresh → ~75%, clips to 0 only beyond thresh*4
-    profile_score = float(np.clip(1.0 - (avg_z / (thresh * 4)), 0, 1))
+    # Confidence: avg_z=0 → 100%, avg_z=thresh → 50%, avg_z=thresh*2 → 0%
+    profile_score = float(np.clip(1.0 - (avg_z / (thresh * 2)), 0, 1))
     confidence    = round(profile_score * 100, 1)
-
-    
-
-    # Minimum confidence gate
-    if authenticated and confidence < MIN_CONFIDENCE:
-        authenticated = False
 
     if authenticated:
         return {
